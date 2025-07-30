@@ -1,0 +1,59 @@
+import argparse
+from data_loader import load_and_preprocess
+from pca_ig import PCA_IG_Selector
+from model_trainer import train_and_evaluate
+
+def main():
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='PCA_IG IoT Anomaly Detection Experiment')
+    parser.add_argument('--dataset', type=str, required=True, 
+                       choices=['Bot-IoT', 'CIC-IDS2018'], 
+                       help='Dataset name')
+    parser.add_argument('--data_path', type=str, required=True,
+                       help='Path to dataset CSV file')
+    parser.add_argument('--classifier', type=str, default='RF',
+                       choices=['RF', 'XGB'], 
+                       help='Classifier type (RF: Random Forest, XGB: XGBoost)')
+    parser.add_argument('--pca_var', type=float, default=0.95,
+                       help='PCA variance ratio to preserve (0-1)')
+    parser.add_argument('--top_k', type=int, default=20,
+                       help='Number of top features to select')
+    args = parser.parse_args()
+    
+    print("="*60)
+    print(f"Starting PCA_IG IoT Anomaly Detection Experiment")
+    print(f"Dataset: {args.dataset}, Classifier: {args.classifier}")
+    print(f"PCA variance: {args.pca_var}, Top features: {args.top_k}")
+    print("="*60)
+    
+    # Step 1: Load and preprocess data
+    X_train, X_test, y_train, y_test = load_and_preprocess(
+        args.data_path, args.dataset
+    )
+    
+    # Step 2: PCA_IG feature selection
+    selector = PCA_IG_Selector(n_components=args.pca_var, top_k=args.top_k)
+    X_train_selected = selector.fit_transform(X_train, y_train)
+    X_test_selected = selector.transform(X_test)
+    
+    # Step 3: Train and evaluate model
+    metrics = train_and_evaluate(
+        X_train_selected, X_test_selected, 
+        y_train, y_test, args.classifier
+    )
+    
+    # Save key results
+    with open('experiment_results.txt', 'w') as f:
+        f.write("PCA_IG Experiment Summary Report\n")
+        f.write("="*50 + "\n")
+        f.write(f"Dataset: {args.dataset}\n")
+        f.write(f"Classifier: {args.classifier}\n")
+        f.write(f"Final feature dimension: {X_train_selected.shape[1]}\n\n")
+        f.write("Performance Metrics:\n")
+        for k, v in metrics.items():
+            f.write(f"{k}: {v:.4f}\n")
+    
+    print("\nExperiment completed! Results saved to experiment_results.txt")
+
+if __name__ == "__main__":
+    main()
