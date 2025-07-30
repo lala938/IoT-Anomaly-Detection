@@ -1,0 +1,86 @@
+from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score, f1_score, 
+    confusion_matrix, roc_auc_score
+)
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+def evaluate_model(model, X_test, y_test, model_name):
+    """
+    Evaluate model performance and generate visualizations
+    Returns:
+        Dictionary containing performance metrics
+    """
+    # Generate predictions
+    y_pred = model.predict(X_test)
+    y_proba = model.predict_proba(X_test)[:, 1] if hasattr(model, "predict_proba") else None
+    
+    # Calculate metrics
+    metrics = {
+        'Accuracy': accuracy_score(y_test, y_pred),
+        'Precision': precision_score(y_test, y_pred),
+        'Recall': recall_score(y_test, y_pred),
+        'F1': f1_score(y_test, y_pred),
+        'ROC_AUC': roc_auc_score(y_test, y_proba) if y_proba is not None else None
+    }
+    
+    # Calculate False Positive Rate
+    tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+    metrics['FPR'] = fp / (fp + tn)
+    
+    # Print results
+    print(f"\n{model_name} Performance Evaluation:")
+    for metric, value in metrics.items():
+        if value is not None:
+            print(f"{metric}: {value:.4f}")
+    
+    # Plot confusion matrix
+    plt.figure(figsize=(8, 6))
+    cm = confusion_matrix(y_test, y_pred)
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+                xticklabels=['Normal', 'Anomaly'], 
+                yticklabels=['Normal', 'Anomaly'])
+    plt.title(f'{model_name} Confusion Matrix')
+    plt.xlabel('Predicted Label')
+    plt.ylabel('True Label')
+    plt.savefig(f'{model_name}_confusion_matrix.png', bbox_inches='tight')
+    
+    return metrics
+
+def train_and_evaluate(X_train, X_test, y_train, y_test, model_type='RF'):
+    """
+    Train and evaluate specified model type
+    Args:
+        model_type: 'RF' (Random Forest) or 'XGB' (XGBoost)
+    """
+    if model_type == 'RF':
+        model = RandomForestClassifier(
+            n_estimators=150,
+            max_depth=12,
+            random_state=42,
+            class_weight='balanced',
+            n_jobs=-1
+        )
+        model_name = "Random Forest"
+    elif model_type == 'XGB':
+        model = XGBClassifier(
+            n_estimators=200,
+            max_depth=8,
+            learning_rate=0.1,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=42,
+            use_label_encoder=False,
+            eval_metric='logloss'
+        )
+        model_name = "XGBoost"
+    else:
+        raise ValueError("Unsupported model type")
+    
+    print(f"\nTraining {model_name} model...")
+    model.fit(X_train, y_train)
+    print("Training completed!")
+    
+    return evaluate_model(model, X_test, y_test, model_name)
