@@ -1,0 +1,57 @@
+import numpy as np
+from sklearn.decomposition import PCA
+from sklearn.feature_selection import mutual_info_classif
+
+class PCA_IG_Selector:
+    """
+    Implementation of PCA_IG hybrid feature selection algorithm
+    Workflow:
+        1. Apply PCA for dimensionality reduction
+        2. Calculate Information Gain (IG) for PCA components
+        3. Select top-k features with highest IG scores
+    """
+    
+    def __init__(self, n_components=0.95, top_k=20):
+        """
+        Args:
+            n_components: Variance ratio to preserve (0-1)
+            top_k: Number of top features to select
+        """
+        self.n_components = n_components
+        self.top_k = top_k
+        self.pca = None
+        self.selected_indices = None
+    
+    def fit_transform(self, X, y):
+        """
+        Perform PCA_IG feature selection
+        Args:
+            X: Input feature matrix (n_samples, n_features)
+            y: Target labels
+        Returns:
+            Selected feature subset
+        """
+        # Stage 1: PCA dimensionality reduction
+        self.pca = PCA(n_components=self.n_components, random_state=42)
+        X_pca = self.pca.fit_transform(X)
+        print(f"PCA completed: {X.shape[1]} features -> {X_pca.shape[1]} components")
+        
+        # Stage 2: Information Gain feature selection
+        ig_scores = mutual_info_classif(X_pca, y, random_state=42)
+        
+        # Select top-k features with highest IG scores
+        self.selected_indices = np.argsort(ig_scores)[-self.top_k:][::-1]
+        print(f"IG selection completed: Selected top {self.top_k} features")
+        
+        return X_pca[:, self.selected_indices]
+    
+    def transform(self, X):
+        """Apply the same transformation to new data"""
+        if self.pca is None:
+            raise ValueError("Must call fit_transform first")
+        X_pca = self.pca.transform(X)
+        return X_pca[:, self.selected_indices]
+    
+    def get_feature_importance(self):
+        """Get feature importance scores (for visualization)"""
+        return self.pca.components_[self.selected_indices]
